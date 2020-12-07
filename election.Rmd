@@ -1,0 +1,128 @@
+---
+title: "Monthly Totals"
+author: "Katy Seiter"
+date: "11/30/2020"
+output: html_document
+---
+
+#Monthly Totals for Hospitals, Deaths, New Cases 
+```{r}
+library(tidyverse)
+library(rio)
+library(lubridate)
+
+```
+
+## Monthly totals for new cases, deaths, positives
+```{r}
+master2 <- rio::import("https://raw.githubusercontent.com/Arkansascovid/Main/master/master_file.csv")
+
+test <- master2 %>% 
+  select(county_nam, mydate, positive, New_Cases_Today, New_Deaths_Today) %>% 
+  filter(county_nam=="Arkansas_all_counties")
+
+test$month <- month(test$mydate, label=TRUE)
+
+test3 <- aggregate(cbind(New_Cases_Today, New_Deaths_Today) ~ month, data = test, sum, na.rm = TRUE) %>% 
+  arrange(desc(month))
+write.csv(test3, "monthly.csv")
+
+# Daily New Cases
+cases_month <- test %>%
+  group_by(month) %>%
+  summarise(New_Cases_Month = sum(New_Cases_Today, na.rm = TRUE)) %>% 
+  arrange(desc(month))
+write.csv(cases_month, "monthlycases.csv")
+
+# Daily New Deaths
+deaths_month <- test %>%
+  group_by(month) %>%
+  summarise(New_Deaths_Month = sum(New_Deaths_Today, na.rm = TRUE)) %>% 
+  arrange(desc(month))
+write.csv(deaths_month, "monthlydeaths.csv")
+
+# Monthly positives 
+pos_month <- test %>%
+  group_by(month) %>%
+  summarise(Total_Pos = sum(positive, na.rm = TRUE)) %>% 
+  arrange(desc(month))
+write.csv(pos_month, "monthlypos.csv")
+
+covidmonth <- inner_join(cases_month, deaths_month, by = "month")
+write.csv(covidmonth, "monthly.csv")
+
+```
+
+## Monthly totals for hospital data
+```{r}
+hospital_master <- rio::import("https://raw.githubusercontent.com/Arkansascovid/Main/master/hospital_master.csv")
+
+test2 <- hospital_master %>% 
+  select(date, Hospitalized, New_on_Vent, New_Admits)
+
+test2$month <- month(test2$date, label=TRUE)
+
+test4 <- aggregate(cbind(Hospitalized, Vent, New_Admits) ~ month, data = test2, sum, na.rm = TRUE) %>% 
+  arrange(desc(month))
+write.csv(test4, "monthlyhosp.csv")
+
+# Hospitalized Totals
+hospitalized_month <- test2 %>%
+  group_by(month) %>%
+  summarise(Hosp_Month = sum(Hospitalized, na.rm = TRUE)) %>% 
+  arrange(desc(month))
+write.csv(hospitalized_month, "monthlyhosp.csv")
+
+# New Admits Totals
+admits_month <- test2 %>%
+  group_by(month) %>%
+  summarise(admits_month = sum(New_Admits, na.rm = TRUE)) %>% 
+  arrange(desc(month))
+write.csv(admits_month, "monthlyadmits.csv")
+
+# Ventilator Totals
+vent_month <- test2 %>%
+  group_by(month) %>%
+  summarise(Vent_month = sum(New_on_Vent, na.rm = TRUE)) %>% 
+  arrange(desc(month))
+write.csv(vent_month, "monthlyvents.csv")
+
+hospmonth <- inner_join(hospitalized_month, admits_month, by = "month")
+hospmonth2 <- inner_join(hospmonth, vent_month, by = "month")
+write.csv(hospmonth2, "hospitalmonthly.csv")
+```
+
+#import elections
+```{r}
+election <- rio::import("election2.xlsx")
+election <- election %>% rename(County_Name = County)
+election$County_Name <- str_replace_all(election$County_Name, pattern=fixed('Saint Francis'), replacement=fixed('St. Francis') )
+```
+
+#calculations
+```{r}
+countyonlytoday <- countyonlytoday %>% 
+  mutate(Cases_10k_Pop = (Positive/pop_5yr_est_2018)*10000)
+countyonlytoday$Cases_10k_Pop <-round(countyonlytoday$Cases_10k_Pop, 2)
+```
+#join tables
+```{r}
+electioncounty <- inner_join(election, countyonlytoday, by = "County_Name")
+electioncounty <- electioncounty %>% 
+  select("County_Name", "Margin", "Positive", "Active_Cases", "Cases_10k_Pop")
+
+write.csv(electioncounty, "electioncounty.csv")
+```
+
+##import lat/long
+```{r}
+lat <- rio::import("ar counties latlong.csv")
+lat <- lat %>% rename(County_Name = county_nam)
+```
+
+##innerjoin 
+```{r}
+electioncounties <- inner_join(electioncounty, lat, by = "County_Name")
+write.csv(electioncounties, "electioncounties.csv")
+```
+
